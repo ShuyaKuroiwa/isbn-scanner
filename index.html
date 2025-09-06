@@ -33,7 +33,6 @@
 
 <div class="card stack">
   <label>借りる人の名前（表示名）<input id="yourName" placeholder="例：田中 しゅう"></label>
-  <label class="small"><input type="checkbox" id="labBook"> これはゼミ室の本</label>
 </div>
 
 <div class="row">
@@ -58,12 +57,31 @@
   </div>
 </div>
 
+<!-- 完了カード -->
+<div id="doneOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#fff; border-radius:16px; max-width:520px; width:100%; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.2);">
+    <h2 style="margin:0 0 8px;">✅ 送信完了！</h2>
+    <p style="margin:0 0 8px;">Slackの<span id="slackChannelHint">指定チャンネル</span>を確認してね。</p>
+    <p style="margin:0 12px 16px; color:#555;">返却時には <b>「end」スタンプ</b> をメッセージに押してください。</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a id="openSlackBtn" href="#" target="_blank" rel="noopener" style="text-decoration:none;">
+        <button style="padding:.6rem .9rem; border:1px solid #ccc; border-radius:10px; background:#f8f8f8;">Slackを開く</button>
+      </a>
+      <button id="scanAgainBtn" style="padding:.6rem .9rem; border:1px solid #4a7; border-radius:10px; background:#eafff1;">続けてスキャン</button>
+      <button id="closeDoneBtn" style="padding:.6rem .9rem; border:1px solid #ccc; border-radius:10px; background:#fff;">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
   import { BrowserMultiFormatReader, NotFoundException } from "https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/+esm";
 
-  // ====== 設定：n8nのWebhook URLだけ書き換えてください ======
-  const N8N_WEBHOOK_URL = "https://yn8n.app.n8n.cloud/webhook/87e99525-d98d-4ca5-94c5-c1440d4b5ebd"; // ←あなたのn8nのWebhook URL
-  // ============================================================
+  // ====== 設定：n8nのWebhook URL ======
+  const N8N_WEBHOOK_URL = "https://YOUR-N8N-DOMAIN/webhook/scan";
+  // Slackチャンネル案内用（任意）
+  const SLACK_TARGET_URL = ""; // 例: "https://app.slack.com/client/TXXXX/CYYYYY"
+  const SLACK_CHANNEL_LABEL = "#zemi-books";
+  // ====================================
 
   const codeReader = new BrowserMultiFormatReader();
   const video = document.getElementById('preview');
@@ -71,10 +89,8 @@
   const startBtn = document.getElementById('start');
   const statusEl = document.getElementById('status');
   const torchEl = document.getElementById('torch');
-  const labBookEl = document.getElementById('labBook');
   const nameEl = document.getElementById('yourName');
   const resultEl = document.getElementById('result');
-
   const bookBox = document.getElementById('book');
   const coverEl = document.getElementById('cover');
   const titleEl = document.getElementById('title');
@@ -82,6 +98,8 @@
   const recEl = document.getElementById('rec');
 
   let lastScan = { code: null, at: 0 };
+  let sending = false;
+  let stream = null;
 
   // ====== ISBNユーティリティ ======
   function isValidIsbn13(s){
@@ -127,28 +145,44 @@
     await listCameras();
     const deviceId = devicesSel.value || undefined;
     statusEl.textContent = "スキャン中…";
+    sending = false;
     try {
+      stopCamera();
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
       codeReader.decodeFromVideoDevice(deviceId, video, onScan);
+      startBtn.textContent = "再起動";
     } catch (e) {
       console.error(e);
       statusEl.textContent = "起動エラー: " + e.message;
     }
   }
 
+  function stopCamera(){
+    try { codeReader.reset(); } catch(e){}
+    if (video && video.srcObject) {
+      video.srcObject.getVideoTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+    stream = null;
+    statusEl.textContent = "停止中";
+  }
+
   async function onScan(res, err){
     if(res){
       const raw = res.getText();
       const cand = normalizeCandidate(raw);
-      if (!looksLikeIsbn13(cand)) { return; }
+      if (!looksLikeIsbn13(cand)) return;
       if (debounceDuplicate(cand)) return;
+      stopCamera();
       resultEl.textContent = cand;
-
-      const payload = {
-        isbn: cand,
-        name: nameEl.value.trim(),
-        isLabBook: !!labBookEl.checked
-      };
-
+      if (sending) return;
+      sending = true;
+      const payload = { isbn: cand, name: nameEl.value.trim() };
       try{
         const r = await fetch(N8N_WEBHOOK_URL, {
           method:"POST",
@@ -157,7 +191,6 @@
         });
         if(!r.ok){ throw new Error("n8n error " + r.status); }
         const data = await r.json().catch(()=> ({}));
-
         if (data && data.book){
           bookBox.style.display = "flex";
           coverEl.src = data.book.cover_url || "";
@@ -169,10 +202,13 @@
             recEl.textContent = "";
           }
         }
-        statusEl.textContent = "送信完了";
+        statusEl.textContent = "送信完了（カメラは停止中）";
+        showDoneCard();
       }catch(e){
         console.error(e);
         statusEl.textContent = "送信失敗: " + e.message;
+      } finally {
+        sending = false;
       }
     }else if(err && !(err instanceof NotFoundException)){
       console.warn(err);
@@ -180,12 +216,11 @@
   }
 
   startBtn.addEventListener('click', startCamera);
-  devicesSel.addEventListener('change', ()=>{ codeReader.reset(); startCamera(); });
+  devicesSel.addEventListener('change', ()=>{ stopCamera(); startCamera(); });
 
-  // Torch (可能な端末のみ)
   torchEl.addEventListener('change', async ()=>{
     try{
-      const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
+      const track = (video.srcObject && video.srcObject.getVideoTracks()[0]) || (stream && stream.getVideoTracks()[0]) || null;
       if(!track) return;
       await track.applyConstraints({ advanced: [{ torch: torchEl.checked }] });
     }catch(e){
@@ -197,6 +232,29 @@
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
     statusEl.textContent = "注意: カメラ使用には https が必要です（localhost除く）";
   }
+
+  // 完了カード
+  function showDoneCard(){
+    const ov = document.getElementById('doneOverlay');
+    const openSlackBtn = document.getElementById('openSlackBtn');
+    const slackHint = document.getElementById('slackChannelHint');
+    slackHint.textContent = SLACK_CHANNEL_LABEL || "Slack";
+    if (SLACK_TARGET_URL) {
+      openSlackBtn.href = SLACK_TARGET_URL;
+      openSlackBtn.style.display = 'inline-block';
+    } else {
+      openSlackBtn.style.display = 'none';
+    }
+    ov.style.display = 'flex';
+  }
+  function hideDoneCard(){
+    document.getElementById('doneOverlay').style.display = 'none';
+  }
+  document.getElementById('scanAgainBtn').addEventListener('click', ()=>{
+    hideDoneCard();
+    startCamera();
+  });
+  document.getElementById('closeDoneBtn').addEventListener('click', hideDoneCard);
 </script>
 </body>
 </html>
