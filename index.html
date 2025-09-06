@@ -2,170 +2,322 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lab Library｜ISBNスキャナ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lab Library｜ISBNスキャナ（Mobile）</title>
   <style>
     :root{
-      --brand:#d33a57;
-      --brand-weak:#e8728b;
-      --ink:#2f3a4a;
-      --text:#5a6473;
-      --muted:#7b8794;
-      --panel:#fdeaf0;
-      --bg:#fbfcfe;
+      --brand:#d33a57; --brand-weak:#e8728b; --ink:#243043; --text:#5a6473; --muted:#7b8794;
+      --panel:#fdeaf0; --bg:#fbfcfe; --ring: 0 0 0 3px rgba(211,58,87,.18), 0 1px 2px rgba(0,0,0,.06) inset;
+      --shadow-lg:0 24px 64px rgba(27,39,51,.14); --shadow-md:0 12px 32px rgba(27,39,51,.10);
       --radius-xl:24px;
-      --shadow-lg:0 24px 64px rgba(27,39,51,.14);
-      --shadow-md:0 12px 32px rgba(27,39,51,.10);
+      --safe-bottom: env(safe-area-inset-bottom, 16px);
     }
-
+    html,body{height:100%}
     body{
       margin:0; color:var(--text);
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", "游ゴシック", "Meiryo", sans-serif;
-      background: var(--bg);
-      display:flex; flex-direction:column; align-items:center;
+      background:
+        radial-gradient(1200px 600px at 20% -10%, #ffeef4 0%, rgba(255,255,255,0) 60%),
+        radial-gradient(1000px 500px at 90% 0%, #eef5ff 0%, rgba(255,255,255,0) 55%),
+        var(--bg);
+      display:flex; flex-direction:column; align-items:center; min-height:100dvh;
     }
-    header{ text-align:center; margin:40px 0 20px; }
+    header{ width:min(920px, 94vw); text-align:center; margin:36px 0 18px; }
     .brand{ display:inline-flex; align-items:center; gap:12px; color:var(--ink); }
-    .brand h1{ font-size:28px; margin:0; font-weight:800; }
-    .subtitle{ margin-top:6px; color:var(--text); }
+    .brand svg{ width:32px; height:32px; color:var(--brand); }
+    .brand h1{ font-size:clamp(22px,6vw,38px); line-height:1.1; margin:0; font-weight:800; }
+    .subtitle{ margin-top:6px; color:var(--text); font-size:clamp(13px,3.5vw,16px) }
 
     .card{
-      width:min(720px, 92vw);
-      background:var(--panel);
-      border-radius:var(--radius-xl);
-      box-shadow:var(--shadow-lg);
-      padding:28px;
+      width:min(720px, 94vw);
+      margin:14px auto 0; background:var(--panel); border-radius:var(--radius-xl);
+      box-shadow:var(--shadow-lg); padding:18px clamp(14px, 5vw, 28px);
     }
-    .card h2{ text-align:center; margin:0 0 16px; color:var(--ink) }
-    .formRow{ display:flex; flex-direction:column; gap:14px; max-width:480px; margin:0 auto; }
-    label{ font-weight:700; color:var(--ink); }
+    .card h2{ margin:6px 0 14px; text-align:center; color:var(--ink); font-size:clamp(18px,5vw,22px); letter-spacing:.4px }
+
+    .formRow{ max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:12px }
+    .label{ font-weight:800; color:var(--ink); font-size:15px }
     input[type="text"]{
-      padding:14px; border:1px solid #ddd; border-radius:12px;
-      font-size:16px; text-align:center;
+      width:100%; background:#fff; border:1px solid #e6e8eb; border-radius:14px;
+      padding:14px 16px; font-size:17px; outline:none; text-align:center;
+      box-shadow: inset 0 1px 0 rgba(0,0,0,.02); transition: box-shadow .15s ease, border-color .15s ease;
     }
-    .btn{
-      padding:14px; border:none; border-radius:12px;
-      background:var(--brand-weak); color:white; font-size:16px;
-      cursor:pointer; font-weight:600;
-    }
-    .btn:hover{ filter:brightness(1.05); }
-    .note{ font-size:14px; color:var(--muted); text-align:center }
+    input[type="text"]::placeholder{ color:#9aa5b1 }
+    input[type="text"]:focus{ border-color:#f2b5c1; box-shadow:var(--ring) }
 
-    /* カメラプレビューを同じカードに */
-    #cameraBox{
-      margin-top:20px; display:none; flex-direction:column; align-items:center; gap:10px;
+    /* ===== スキャンボックス（ボタン→プレビューにトランスフォーム） ===== */
+    .scanBox{
+      position:relative; overflow:hidden; border-radius:18px; background:#fff;
+      border:1px solid #e9edf3; box-shadow:var(--shadow-md);
+      margin-top:6px;
     }
-    video{
-      width:100%; max-width:560px; border-radius:12px; background:#000;
+    .scanBox button{
+      width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+      padding:16px; background:var(--brand-weak); color:#fff; border:0; cursor:pointer;
+      font-size:18px; border-radius:16px; margin:12px; transition: transform .03s ease, filter .2s ease, background .2s ease;
     }
-    #status{ font-size:14px; color:#555; }
-    #result{ font-weight:700; }
+    .scanBox button:hover{ filter:brightness(1.03) }
+    .scanBox button:active{ transform:translateY(1px) }
 
-    /* ローディング */
-    #loadingOverlay{
-      display:none; position:fixed; inset:0; background:rgba(255,255,255,.8);
-      align-items:center; justify-content:center; z-index:999;
+    .scanBox.active{
+      background:#0a0a0a; padding:0; border-radius:18px; border-color:#111;
     }
-    .spinner{ width:50px; height:50px; border:5px solid rgba(0,0,0,.1); border-top-color:var(--brand); border-radius:50%; animation:spin 1s linear infinite; }
-    @keyframes spin{ to{ transform:rotate(360deg) } }
+    .scanBox .toolbar{
+      display:none; position:absolute; inset:auto 8px 8px auto; z-index:3;
+    }
+    .scanBox.active .toolbar{ display:flex; gap:8px }
+    .tBtn{
+      padding:.5rem .7rem; border-radius:12px; border:1px solid #d9dee6;
+      background:#f7f8fb; font-size:.9rem; color:#313e4e; cursor:pointer;
+    }
+
+    video#preview{ width:100%; height:auto; display:none; aspect-ratio:3/4; object-fit:cover; background:#000 }
+    .scanBox.active video#preview{ display:block }
+
+    .statusLine{ text-align:center; color:#566273; font-size:14px; margin:8px 0 4px }
+    .note{ margin:6px auto 0; color:var(--muted); display:flex; align-items:flex-start; gap:8px; font-size:13px; max-width:520px }
+    .note .dot{ width:8px; height:8px; border-radius:999px; background:var(--brand); margin-top:7px }
+
+    /* 書誌プレビュー */
+    #book{ display:none; margin-top:14px; gap:12px; align-items:flex-start }
+    #book img{ max-height:120px; border:1px solid #eee; border-radius:12px; background:#fff }
+    #book .meta{ display:flex; flex-direction:column; gap:4px }
+    #title{ color:var(--ink); font-weight:800 }
+    #authors{ color:var(--muted) }
+
+    footer{ margin:24px 0 calc(var(--safe-bottom) + 12px); color:var(--muted); font-size:12px }
+
+    /* ===== 完了オーバーレイ ===== */
+    #doneOverlay{ display:none; position:fixed; inset:0; background:rgba(5,12,22,.45); z-index:9999; align-items:center; justify-content:center; padding:20px }
+    .doneCard{ background:#fff; border-radius:20px; max-width:520px; width:min(92vw,520px); padding:22px; box-shadow:var(--shadow-lg); text-align:left }
+    .doneCard h2{ margin:0 0 6px; color:var(--ink) }
+    .doneCard p{ margin:0 0 10px; color:#4f5b66 }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px }
+    .ghostBtn, .solidBtn, .plainBtn{
+      padding:.65rem .95rem; border-radius:12px; font-size:14px; cursor:pointer; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;
+    }
+    .solidBtn{ background:#eaf9f0; border-color:#39a66a; color:#216c3e }
+    .ghostBtn{ background:#f5f7fb; border-color:#cfd6df; color:#313e4e }
+    .plainBtn{ background:#fff; border-color:#e1e7ef; color:#3b4758 }
+
+    /* ===== ローディング ===== */
+    #loadingOverlay{ display:none; position:fixed; inset:0; z-index:9998; background:rgba(255,255,255,.85); backdrop-filter:saturate(140%) blur(2px); align-items:center; justify-content:center }
+    .spinner{ width:56px; height:56px; border-radius:50%; border:4px solid rgba(211,58,87,.18); border-top-color: var(--brand); animation: spin 1s linear infinite; margin:0 auto 10px }
+    @keyframes spin{ to{ transform: rotate(360deg); } }
+    .loadingText{ color:var(--ink); font-weight:700; letter-spacing:.2px }
   </style>
 </head>
 <body>
   <header>
-    <div class="brand"><h1>Lab Library</h1></div>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M20 22H6.5A2.5 2.5 0 0 1 4 19.5V5.5A2.5 2.5 0 0 1 6.5 3H20v19z"/>
+      </svg>
+      <h1>Lab Library</h1>
+    </div>
     <div class="subtitle">研究室図書管理システム</div>
   </header>
 
   <main class="card">
     <h2>本の貸出・返却</h2>
     <div class="formRow">
-      <label for="yourName">お名前</label>
-      <input id="yourName" type="text" placeholder="名前を入力してください">
-      <button id="start" class="btn">📷 カメラを起動してスキャン</button>
-      <div class="note">名前を入力してからカメラを起動してください</div>
-    </div>
+      <label class="label" for="yourName">お名前</label>
+      <input id="yourName" type="text" inputmode="text" autocomplete="name" placeholder="名前を入力してください">
 
-    <!-- カメラプレビューエリア -->
-    <div id="cameraBox">
-      <video id="preview" playsinline muted></video>
-      <div id="status">未起動</div>
-      <div>検出結果: <span id="result">—</span></div>
+      <!-- ワンボックス：ボタン→カメラプレビューに変身 -->
+      <div id="scanBox" class="scanBox" aria-live="polite">
+        <button id="startBtn" aria-label="カメラを起動してスキャン">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          カメラを起動してスキャン
+        </button>
+        <div class="toolbar">
+          <button id="stopBtn" class="tBtn">停止</button>
+        </div>
+        <video id="preview" playsinline muted></video>
+      </div>
+
+      <div class="statusLine">検出結果: <span id="result">—</span></div>
+      <div class="note"><span class="dot"></span><span>名前を入力してから起動してください。HTTPS環境（またはlocalhost）で動作します。</span></div>
+
+      <!-- 読み取った本の情報（任意表示） -->
+      <div id="book">
+        <img id="cover" alt="cover">
+        <div class="meta">
+          <div id="title"></div>
+          <div id="authors"></div>
+          <div id="rec"></div>
+        </div>
+      </div>
     </div>
   </main>
 
+  <footer><small>© 2025 Lab Library System</small></footer>
+
+  <!-- 完了オーバーレイ -->
+  <div id="doneOverlay">
+    <div class="doneCard">
+      <h2>✅ 送信完了！</h2>
+      <p>Slackの <span id="slackChannelHint" style="font-weight:700; color:var(--brand)">#bookshelf_library</span> を確認してね。</p>
+      <p style="margin-bottom:14px;">返却時には <b>「end」スタンプ</b> をメッセージに押してください。</p>
+      <div class="actions">
+        <a id="openSlackBtn" href="#" target="_blank" rel="noopener" class="ghostBtn">Slackを開く</a>
+        <button id="scanAgainBtn" class="solidBtn">続けてスキャン</button>
+        <button id="closeDoneBtn" class="plainBtn">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ローディング -->
-  <div id="loadingOverlay"><div class="spinner"></div></div>
+  <div id="loadingOverlay">
+    <div style="text-align:center;">
+      <div class="spinner"></div>
+      <div class="loadingText">読み込み中…</div>
+    </div>
+  </div>
 
   <script type="module">
     import { BrowserMultiFormatReader, NotFoundException } from "https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/+esm";
 
+    // ===== 設定（必要に応じて書き換え） =====
     const N8N_WEBHOOK_URL = "https://yn8n.app.n8n.cloud/webhook/87e99525-d98d-4ca5-94c5-c1440d4b5ebd";
+    const SLACK_TARGET_URL = ""; // 例: "https://app.slack.com/client/TXXXX/CYYYYY"
+    const SLACK_CHANNEL_LABEL = "#bookshelf_library";
 
+    // 要素参照
     const codeReader = new BrowserMultiFormatReader();
-    const startBtn = document.getElementById('start');
-    const nameEl = document.getElementById('yourName');
-    const cameraBox = document.getElementById('cameraBox');
-    const video = document.getElementById('preview');
-    const statusEl = document.getElementById('status');
-    const resultEl = document.getElementById('result');
-    const loadingOv = document.getElementById('loadingOverlay');
+    const startBtn   = document.getElementById('startBtn');
+    const stopBtn    = document.getElementById('stopBtn');
+    const scanBox    = document.getElementById('scanBox');
+    const video      = document.getElementById('preview');
+    const nameEl     = document.getElementById('yourName');
+    const resultEl   = document.getElementById('result');
+    const bookBox    = document.getElementById('book');
+    const coverEl    = document.getElementById('cover');
+    const titleEl    = document.getElementById('title');
+    const authorsEl  = document.getElementById('authors');
+    const recEl      = document.getElementById('rec');
+    const loadingOv  = document.getElementById('loadingOverlay');
 
     let lastScan = { code: null, at: 0 };
-    let sending = false;
+    let sending  = false;
 
+    // ===== ユーティリティ =====
     function isValidIsbn13(s){
       if(!/^\d{13}$/.test(s)) return false;
       const a = s.split('').map(Number);
-      const sum = a.slice(0,12).reduce((acc,d,i)=> acc + d*(i%2?3:1), 0);
+      const sum = a.slice(0,12).reduce((acc,d,i)=> acc + d * (i%2?3:1), 0);
       return (10 - (sum % 10)) % 10 === a[12];
     }
-    function normalizeCandidate(raw){ return (raw||'').replace(/\D/g,'').slice(0,13); }
-    function looksLikeIsbn13(s){ return (s.startsWith('978')||s.startsWith('979')) && isValidIsbn13(s); }
-    function debounceDuplicate(code,ms=3000){
-      const now=Date.now(); if(lastScan.code===code && (now-lastScan.at)<ms) return true;
-      lastScan={code,at:now}; return false;
+    function normalizeCandidate(raw){
+      let t = (raw||'').replace(/\D/g,'');
+      if (t.length > 13 && t.startsWith('97') && /^\d{18}$/.test(t)) t = t.slice(0,13);
+      return t;
+    }
+    function looksLikeIsbn13(s){ return (s.startsWith('978') || s.startsWith('979')) && isValidIsbn13(s); }
+    function debounceDuplicate(code, ms=3000){
+      const now = Date.now();
+      if (lastScan.code === code && (now - lastScan.at) < ms) return true;
+      lastScan = { code, at: now }; return false;
+    }
+
+    // ===== カメラ起動（ワンボックス化） =====
+    function activateScanBox(){
+      scanBox.classList.add('active');
+      startBtn.style.display = 'none';
+    }
+    function deactivateScanBox(){
+      scanBox.classList.remove('active');
+      startBtn.style.display = '';
     }
 
     function startCamera(){
-      if (!nameEl.value.trim()){ alert("名前を入力してください"); return; }
-      cameraBox.style.display="flex";
-      statusEl.textContent="スキャン中…";
-      codeReader.decodeFromVideoDevice(null, video, onScan);
-    }
-    function stopCamera(){
-      try{ codeReader.reset(); }catch(e){}
-      if(video.srcObject){ video.srcObject.getTracks().forEach(t=>t.stop()); video.srcObject=null; }
-      statusEl.textContent="停止中";
+      if (!nameEl.value.trim()){ alert('先にお名前を入力してください'); return; }
+      activateScanBox();
+      try {
+        codeReader.decodeFromVideoDevice(null, video, onScan);
+      } catch (e) {
+        console.error(e);
+        alert('カメラ起動に失敗しました: ' + e.message);
+        deactivateScanBox();
+      }
     }
 
+    function stopCamera(){
+      try { codeReader.reset(); } catch(e){}
+      if (video && video.srcObject) {
+        video.srcObject.getVideoTracks().forEach(t => t.stop());
+        video.srcObject = null;
+      }
+      deactivateScanBox();
+    }
+
+    // ===== スキャン処理 =====
     async function onScan(res, err){
       if(res){
-        const cand = normalizeCandidate(res.getText());
+        const raw  = res.getText();
+        const cand = normalizeCandidate(raw);
         if (!looksLikeIsbn13(cand)) return;
         if (debounceDuplicate(cand)) return;
-        stopCamera();
-        resultEl.textContent=cand;
-        if(sending) return; sending=true;
-        loadingOv.style.display="flex";
 
+        stopCamera(); // 多重送信防止
+        resultEl.textContent = cand;
+        if (sending) return; sending = true;
+
+        loadingOv.style.display = 'flex';
+        const payload = { isbn: cand, name: nameEl.value.trim() };
         try{
-          await fetch(N8N_WEBHOOK_URL,{
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({isbn:cand,name:nameEl.value.trim()})
+          const r = await fetch(N8N_WEBHOOK_URL, {
+            method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload)
           });
-          statusEl.textContent="送信完了";
+          if(!r.ok) throw new Error('n8n error ' + r.status);
+          const data = await r.json().catch(()=> ({}));
+
+          if (data && data.book){
+            bookBox.style.display = 'flex';
+            coverEl.src = data.book.cover_url || '';
+            titleEl.textContent = `${data.book.title || 'タイトル不明'} / ${data.book.isbn13 || ''}`;
+            authorsEl.textContent = (data.book.authors || []).join(', ');
+            recEl.textContent = '';
+          }
+          showDoneCard();
         }catch(e){
-          console.error(e); statusEl.textContent="送信失敗";
-        }finally{
-          sending=false; loadingOv.style.display="none";
+          console.error(e);
+          alert('通信に失敗しました。ネットワーク状況を確認してください。');
+        } finally {
+          sending = false;
+          loadingOv.style.display = 'none';
         }
-      } else if(err && !(err instanceof NotFoundException)){
+      } else if (err && !(err instanceof NotFoundException)) {
         console.warn(err);
       }
     }
 
+    // ===== イベント =====
     startBtn.addEventListener('click', startCamera);
+    stopBtn.addEventListener('click', stopCamera);
+
+    // HTTPS注意
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      console.warn('カメラ使用には https が必要です（localhost除く）');
+    }
+
+    // 完了カード
+    function showDoneCard(){
+      const ov = document.getElementById('doneOverlay');
+      const openSlackBtn = document.getElementById('openSlackBtn');
+      const slackHint = document.getElementById('slackChannelHint');
+      slackHint.textContent = SLACK_CHANNEL_LABEL || 'Slack';
+      if (SLACK_TARGET_URL) { openSlackBtn.href = SLACK_TARGET_URL; openSlackBtn.style.display = 'inline-flex'; }
+      else { openSlackBtn.style.display = 'none'; }
+      ov.style.display = 'flex';
+    }
+    function hideDoneCard(){ document.getElementById('doneOverlay').style.display = 'none'; }
+    document.getElementById('scanAgainBtn').addEventListener('click', ()=>{ hideDoneCard(); startCamera(); });
+    document.getElementById('closeDoneBtn').addEventListener('click', hideDoneCard);
   </script>
 </body>
 </html>
