@@ -8,15 +8,18 @@
     :root{
       --brand:#d33a57;
       --brand-weak:#e8728b;
-      --ink:#3b4758;
+      --ink:#2f3a4a;
       --text:#5a6473;
       --muted:#7b8794;
       --panel:#fdeaf0;
       --bg:#fbfcfe;
       --radius-xl:24px;
-      --shadow-lg:0 20px 50px rgba(27,39,51,.12);
-      --shadow-md:0 10px 30px rgba(27,39,51,.08);
+      --shadow-lg:0 24px 64px rgba(27,39,51,.14);
+      --shadow-md:0 12px 32px rgba(27,39,51,.10);
+      --ring: 0 0 0 3px rgba(211,58,87,.18), 0 1px 2px rgba(0,0,0,.06) inset;
     }
+
+    /* ===== ページ全体 ===== */
     html,body{height:100%}
     body{
       margin:0; color:var(--text);
@@ -27,6 +30,8 @@
         var(--bg);
       display:flex; flex-direction:column; align-items:center;
     }
+
+    /* ===== ヘッダ ===== */
     header{ width:min(920px, 92vw); text-align:center; margin:48px 0 28px; }
     .brand{ display:inline-flex; align-items:center; gap:14px; color:var(--ink); }
     .brand svg{ width:36px; height:36px; color:var(--brand); }
@@ -34,42 +39,53 @@
     .subtitle{ margin-top:8px; color:var(--text); font-size:clamp(14px,1.8vw,18px); }
     .underline{ width:120px; height:6px; margin:20px auto 0; border-radius:999px; background:var(--brand); opacity:.88; }
 
+    /* ===== 入力カード（中央揃え＆きれい） ===== */
     .card{
-      width:min(860px, 90vw);
-      margin:32px auto 0;
+      width:min(740px, 92vw);
+      margin:28px auto 0;
       background:var(--panel);
-      border-radius:24px;
+      border-radius:var(--radius-xl);
       box-shadow:var(--shadow-lg);
       padding:28px clamp(18px, 5vw, 40px);
     }
     .card h2{ margin:6px 0 18px; text-align:center; color:var(--ink); font-size:clamp(18px,3vw,24px); letter-spacing:.6px; }
-    .field{ margin:14px 0 8px; }
-    .label{ display:block; font-weight:700; color:var(--ink); margin:0 0 8px; }
-    input[type="text"]{
-      width:100%; background:#fff; border:1px solid #e6e8eb; border-radius:12px;
-      padding:14px 16px; font-size:16px; outline:none; box-shadow: inset 0 1px 0 rgba(0,0,0,.02);
+
+    .formRow{
+      max-width:560px; margin:0 auto;           /* ← フォーム一式を中央に固定幅 */
+      display:flex; flex-direction:column; gap:14px;
+      align-items:stretch;
     }
-    input[type="text"]::placeholder{ color:#99a3ad; }
+    .label{ font-weight:800; color:var(--ink); }
+    input[type="text"]{
+      width:100%;
+      background:#fff; border:1px solid #e6e8eb; border-radius:14px;
+      padding:16px 18px; font-size:18px; outline:none;
+      text-align:center;                         /* ← テキストも中央揃え */
+      box-shadow: inset 0 1px 0 rgba(0,0,0,.02);
+      transition: box-shadow .15s ease, border-color .15s ease;
+    }
+    input[type="text"]::placeholder{ color:#9aa5b1 }
+    input[type="text"]:focus{ border-color:#f2b5c1; box-shadow:var(--ring) }
 
     .btn{
       width:100%; display:inline-flex; align-items:center; justify-content:center; gap:10px;
-      margin-top:14px; padding:16px 18px; background:var(--brand-weak); color:#fff;
-      border:none; border-radius:16px; font-size:17px; letter-spacing:.6px; cursor:pointer;
+      margin-top:4px; padding:16px 18px; background:var(--brand-weak); color:#fff;
+      border:none; border-radius:16px; font-size:18px; letter-spacing:.6px; cursor:pointer;
       box-shadow:var(--shadow-md); transition: transform .03s ease, filter .2s ease, background .2s ease;
     }
-    .btn:hover{ filter:brightness(1.02) }
+    .btn:hover{ filter:brightness(1.03) }
     .btn:active{ transform:translateY(1px) }
     .btn svg{ width:20px; height:20px }
 
-    .note{ margin:14px 2px 2px; color:var(--muted); display:flex; align-items:flex-start; gap:8px; font-size:14px; }
+    .note{ margin:6px auto 0; color:var(--muted); display:flex; align-items:flex-start; gap:8px; font-size:14px; max-width:560px; }
     .note .dot{ width:8px; height:8px; border-radius:999px; background:var(--brand); margin-top:7px }
 
-    /* カメラ表示カード */
+    /* ===== カメラパネル ===== */
     .cam-card{
-      width:min(860px, 90vw);
+      width:min(860px, 92vw);
       margin:18px auto 0;
       background:#fff; border-radius:16px; box-shadow:var(--shadow-md);
-      padding:14px 14px 18px; border:1px solid #e9edf3;
+      padding:14px 14px 18px; border:1px solid #e9edf3; display:none;
     }
     .cam-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; color:#3b4758 }
     .cam-stop{
@@ -80,18 +96,19 @@
       width:100%; max-width:760px; border-radius:12px; background:#000; border:1px solid #e5e8ee;
       display:block;
     }
-    #status{ margin-top:10px; font-size:14px; color:#566273 }
-    #result{ font-weight:700 }
+    #status{ margin-top:10px; font-size:14px; color:#566273; text-align:center }
+    #result{ font-weight:800 }
 
+    /* 本プレビュー（任意） */
     #book{ display:none; margin-top:16px; gap:14px; align-items:flex-start }
     #book img{ max-height:140px; border:1px solid #eee; border-radius:12px; background:#fff }
     #book .meta{ display:flex; flex-direction:column; gap:6px }
-    #title{ color:var(--ink); font-weight:700 }
+    #title{ color:var(--ink); font-weight:800 }
     #authors{ color:var(--muted) }
 
     footer{ margin:40px 0 24px; color:var(--muted); font-size:13px }
 
-    /* 完了オーバーレイ */
+    /* ===== 完了オーバーレイ ===== */
     #doneOverlay{ display:none; position:fixed; inset:0; background:rgba(5,12,22,.45); z-index:9999; align-items:center; justify-content:center; padding:20px; }
     .doneCard{
       background:#fff; border-radius:20px; max-width:520px; width:min(92vw,520px);
@@ -106,6 +123,21 @@
     .solidBtn{ background:#eaf9f0; border-color:#39a66a; color:#216c3e }
     .ghostBtn{ background:#f5f7fb; border-color:#cfd6df; color:#313e4e }
     .plainBtn{ background:#fff; border-color:#e1e7ef; color:#3b4758 }
+
+    /* ===== ローディング（スキャン後～応答待ち） ===== */
+    #loadingOverlay{
+      display:none; position:fixed; inset:0; z-index:9998;
+      background:rgba(255,255,255,.8); backdrop-filter:saturate(140%) blur(2px);
+      align-items:center; justify-content:center;
+    }
+    .spinner{
+      width:56px; height:56px; border-radius:50%;
+      border:4px solid rgba(211,58,87,.18); border-top-color: var(--brand);
+      animation: spin 1s linear infinite;
+      margin:0 auto 10px;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg); } }
+    .loadingText{ color:var(--ink); font-weight:700; letter-spacing:.2px }
   </style>
 </head>
 <body>
@@ -124,40 +156,40 @@
     <div class="underline"></div>
   </header>
 
-  <!-- 入力カード -->
+  <!-- 入力カード（中央寄せフォーム） -->
   <main class="card">
     <h2>本の貸出・返却</h2>
 
-    <div class="field">
+    <div class="formRow">
       <label class="label" for="yourName">お名前</label>
       <input id="yourName" type="text" placeholder="名前を入力してください">
-    </div>
 
-    <button id="start" class="btn" aria-label="カメラを起動してスキャン">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
-        <circle cx="12" cy="13" r="4"/>
-      </svg>
-      カメラを起動してスキャン
-    </button>
+      <button id="start" class="btn" aria-label="カメラを起動してスキャン">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        カメラを起動してスキャン
+      </button>
 
-    <div class="note">
-      <span class="dot"></span>
-      <span>名前を入力してからカメラを起動してください</span>
+      <div class="note">
+        <span class="dot"></span>
+        <span>名前を入力してからカメラを起動してください</span>
+      </div>
     </div>
   </main>
 
   <!-- カメラ表示パネル（サイト内で開く） -->
-  <section id="cameraPanel" class="cam-card" style="display:none">
+  <section id="cameraPanel" class="cam-card">
     <div class="cam-head">
       <strong>カメラをスキャン中…</strong>
       <button id="stopBtn" class="cam-stop">停止</button>
     </div>
     <video id="preview" playsinline muted></video>
     <div id="status">未起動</div>
-    <div style="margin-top:6px;">検出結果: <span id="result">—</span></div>
+    <div style="margin-top:6px; text-align:center;">検出結果: <span id="result">—</span></div>
 
-    <!-- 任意：読み取った本の情報を表示 -->
+    <!-- 任意：読み取った本の情報 -->
     <div id="book">
       <img id="cover" alt="cover">
       <div class="meta">
@@ -177,12 +209,20 @@
     <div class="doneCard">
       <h2>✅ 送信完了！</h2>
       <p>Slackの <span id="slackChannelHint" style="font-weight:700; color:var(--brand)">#bookshelf_library</span> を確認してね。</p>
-      <p style="margin-bottom:14px;">返却時には <b>🔚</b> をメッセージに押してください。</p>
+      <p style="margin-bottom:14px;">返却時には <b>「end」スタンプ</b> をメッセージに押してください。</p>
       <div class="actions">
         <a id="openSlackBtn" href="#" target="_blank" rel="noopener" class="ghostBtn">Slackを開く</a>
         <button id="scanAgainBtn" class="solidBtn">続けてスキャン</button>
         <button id="closeDoneBtn" class="plainBtn">閉じる</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ローディング（スキャン後～応答待ち） -->
+  <div id="loadingOverlay">
+    <div style="text-align:center;">
+      <div class="spinner"></div>
+      <div class="loadingText">読み込み中…</div>
     </div>
   </div>
 
@@ -210,6 +250,8 @@
     const authorsEl   = document.getElementById('authors');
     const recEl       = document.getElementById('rec');
 
+    const loadingOv   = document.getElementById('loadingOverlay');
+
     let lastScan = { code: null, at: 0 };
     let sending  = false;
 
@@ -233,7 +275,7 @@
     }
 
     // カメラ開始（サイト内で開く）
-    async function startCamera(){
+    function startCamera(){
       if (!nameEl.value.trim()){ alert("先にお名前を入力してください"); return; }
       statusEl.textContent = "スキャン中…";
       cameraPanel.style.display = "block";
@@ -267,6 +309,10 @@
         resultEl.textContent = cand;
 
         if (sending) return; sending = true;
+
+        // ← ローディング開始
+        loadingOv.style.display = 'flex';
+
         const payload = { isbn: cand, name: nameEl.value.trim() };
 
         try{
@@ -290,8 +336,11 @@
         }catch(e){
           console.error(e);
           statusEl.textContent = "送信失敗: " + e.message;
+          alert("通信に失敗しました。ネットワーク状況を確認してください。");
         } finally {
           sending = false;
+          // ← ローディング終了
+          loadingOv.style.display = 'none';
         }
       } else if (err && !(err instanceof NotFoundException)) {
         console.warn(err);
@@ -299,8 +348,8 @@
     }
 
     // ボタン
-    startBtn.addEventListener('click', startCamera);
-    stopBtn.addEventListener('click', stopCamera);
+    document.getElementById('start').addEventListener('click', startCamera);
+    document.getElementById('stopBtn').addEventListener('click', stopCamera);
 
     // HTTPS注意
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
