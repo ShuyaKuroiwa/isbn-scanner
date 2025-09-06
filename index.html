@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ISBN Scanner + Supabase Login (v2)</title>
+  <title>ISBN スキャナ（ログインなし版）</title>
   <style>
     :root { --gap: 12px; }
     body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", "游ゴシック", "Meiryo", sans-serif; margin: 16px;}
@@ -20,33 +20,26 @@
     .flex{display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap}
     .muted{color:#777}
     .hint{margin-top:8px;color:#666;font-size:.9rem}
-    .card{border:1px solid #eee;border-radius:8px;padding:12px}
+    .card{border:1px solid #eee;border-radius:8px;padding:12px;max-width:720px}
+    .stack{display:flex;flex-direction:column;gap:8px;max-width:560px}
   </style>
 </head>
 <body>
 <header>
-  <h1>ISBN スキャナ + Googleログイン <small style="font-size:.65em;color:#777;">v2</small></h1>
-  <p class="small">①Googleログイン → ②カメラでバーコード（ISBN-13/EAN-13）を読み取り → ③n8n Webhook に送信</p>
-  <p class="hint">ヒント：本の裏側にバーコードが2つある場合、<b>978/979で始まる方がISBN</b>です（価格用コードは無視します）。</p>
+  <h1>ISBN スキャナ（ログインなし）</h1>
+  <p class="small">①名前を入力 → ②カメラでISBN-13をスキャン → ③n8nに送信してSlackへ通知</p>
+  <p class="hint">バーコードが2つある場合、<b>978/979で始まる方</b>がISBNです。価格用コード（192…など）は自動で無視します。</p>
 </header>
 
-<div class="card">
-  <div class="row">
-    <button id="btn-login">Googleでログイン</button>
-    <button id="btn-logout" style="display:none;">ログアウト</button>
-  </div>
-  <div class="row small">
-    <div>ログイン状態: <span id="who">未ログイン</span></div>
-  </div>
+<div class="card stack">
+  <label>借りる人の名前（表示名）<input id="yourName" placeholder="例：田中 しゅう"></label>
+  <label class="small"><input type="checkbox" id="labBook"> これはゼミ室の本</label>
 </div>
 
 <div class="row">
   <button id="start">カメラ起動</button>
   <select id="devices" aria-label="カメラ選択"></select>
   <label class="small"><input type="checkbox" id="torch"> ライト</label>
-  <label class="small" style="margin-left:8px;">
-    <input type="checkbox" id="labBook"> これはゼミ室の本
-  </label>
 </div>
 
 <video id="preview" playsinline muted></video>
@@ -65,17 +58,12 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script type="module">
   import { BrowserMultiFormatReader, NotFoundException } from "https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/+esm";
 
-  // ====== 設定：以下2つをSupabaseとn8nに合わせて書き換え ======
-  const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";      // ←SupabaseのProject URL
-  const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";              // ←SupabaseのAnon公開キー
-  const N8N_WEBHOOK_URL = "https://YOUR-N8N-DOMAIN/webhook/scan";// ←n8nのWebhook URL
+  // ====== 設定：n8nのWebhook URLだけ書き換えてください ======
+  const N8N_WEBHOOK_URL = "https://YOUR-N8N-DOMAIN/webhook/scan"; // ←あなたのn8nのWebhook URL
   // ============================================================
-
-  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const codeReader = new BrowserMultiFormatReader();
   const video = document.getElementById('preview');
@@ -84,10 +72,8 @@
   const statusEl = document.getElementById('status');
   const torchEl = document.getElementById('torch');
   const labBookEl = document.getElementById('labBook');
+  const nameEl = document.getElementById('yourName');
   const resultEl = document.getElementById('result');
-  const whoEl = document.getElementById('who');
-  const loginBtn = document.getElementById('btn-login');
-  const logoutBtn = document.getElementById('btn-logout');
 
   const bookBox = document.getElementById('book');
   const coverEl = document.getElementById('cover');
@@ -115,6 +101,12 @@
   function looksLikeIsbn13(s){
     return (s.startsWith('978') || s.startsWith('979')) && isValidIsbn13(s);
   }
+  function debounceDuplicate(code, ms=3000){
+    const now = Date.now();
+    if (lastScan.code === code && (now - lastScan.at) < ms) return true;
+    lastScan = { code, at: now };
+    return false;
+  }
 
   async function listCameras(){
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -128,6 +120,10 @@
   }
 
   async function startCamera(){
+    if (!nameEl.value.trim()){
+      alert("先に『借りる人の名前』を入力してください。");
+      return;
+    }
     await listCameras();
     const deviceId = devicesSel.value || undefined;
     statusEl.textContent = "スキャン中…";
@@ -139,41 +135,18 @@
     }
   }
 
-  function debounceDuplicate(code, ms=3000){
-    const now = Date.now();
-    if (lastScan.code === code && (now - lastScan.at) < ms) return true;
-    lastScan = { code, at: now };
-    return false;
-  }
-
   async function onScan(res, err){
     if(res){
       const raw = res.getText();
       const cand = normalizeCandidate(raw);
-
-      // 二本バーコード対策：ISBN(978/979)かつチェックデジットOKだけ採用
-      if (!looksLikeIsbn13(cand)) {
-        return;
-      }
+      if (!looksLikeIsbn13(cand)) { return; }
       if (debounceDuplicate(cand)) return;
-
-      resultEl.textContent = cand; // 表示はISBNのみ
-
-      // ログインユーザーからアクセストークン取得（n8nで検証する）
-      const { data: sess } = await supa.auth.getSession();
-      const accessToken = sess?.session?.access_token || null;
-      const userId = sess?.session?.user?.id || null;
-
-      if (!accessToken || !userId){
-        statusEl.textContent = "ログインしてからスキャンしてください。";
-        return;
-      }
+      resultEl.textContent = cand;
 
       const payload = {
         isbn: cand,
-        userId,
-        isLabBook: !!labBookEl.checked,
-        supabaseAccessToken: accessToken
+        name: nameEl.value.trim(),
+        isLabBook: !!labBookEl.checked
       };
 
       try{
@@ -191,7 +164,7 @@
           titleEl.textContent = `${data.book.title || "タイトル不明"} / ${data.book.isbn13 || ""}`;
           authorsEl.textContent = (data.book.authors || []).join(", ");
           if (Array.isArray(data.recommendations) && data.recommendations.length){
-            recEl.innerHTML = "<b>おすすめ:</b> " + data.recommendations.map(x=>x.isbn13).slice(0,5).join(", ");
+            recEl.innerHTML = "<b>おすすめ:</b> " + data.recommendations.map(x=>x.title).slice(0,5).join(", ");
           } else {
             recEl.textContent = "";
           }
@@ -220,31 +193,6 @@
       torchEl.checked = false;
     }
   });
-
-  // ===== ログインUI =====
-  async function refreshUser(){
-    const { data: { user } } = await supa.auth.getUser();
-    if (user){
-      whoEl.textContent = user.email || user.id;
-      loginBtn.style.display = "none";
-      logoutBtn.style.display = "inline-block";
-    }else{
-      whoEl.textContent = "未ログイン";
-      loginBtn.style.display = "inline-block";
-      logoutBtn.style.display = "none";
-    }
-  }
-  loginBtn.addEventListener('click', async ()=>{
-    await supa.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: location.origin + location.pathname }
-    });
-  });
-  logoutBtn.addEventListener('click', async ()=>{
-    await supa.auth.signOut();
-    await refreshUser();
-  });
-  refreshUser();
 
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
     statusEl.textContent = "注意: カメラ使用には https が必要です（localhost除く）";
