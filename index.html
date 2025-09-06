@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ISBN Scanner + Supabase Login</title>
+  <title>ISBN Scanner + Supabase Login (v2)</title>
   <style>
     :root { --gap: 12px; }
     body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", "游ゴシック", "Meiryo", sans-serif; margin: 16px;}
@@ -19,14 +19,15 @@
     #book .meta{margin-left: 12px}
     .flex{display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap}
     .muted{color:#777}
-    code{background:#f6f6f6; padding:.1rem .3rem; border-radius:4px}
+    .hint{margin-top:8px;color:#666;font-size:.9rem}
     .card{border:1px solid #eee;border-radius:8px;padding:12px}
   </style>
 </head>
 <body>
 <header>
-  <h1>ISBN スキャナ + Googleログイン</h1>
+  <h1>ISBN スキャナ + Googleログイン <small style="font-size:.65em;color:#777;">v2</small></h1>
   <p class="small">①Googleログイン → ②カメラでバーコード（ISBN-13/EAN-13）を読み取り → ③n8n Webhook に送信</p>
+  <p class="hint">ヒント：本の裏側にバーコードが2つある場合、<b>978/979で始まる方がISBN</b>です（価格用コードは無視します）。</p>
 </header>
 
 <div class="card">
@@ -96,6 +97,25 @@
 
   let lastScan = { code: null, at: 0 };
 
+  // ====== ISBNユーティリティ ======
+  function isValidIsbn13(s){
+    if(!/^\d{13}$/.test(s)) return false;
+    const digits = s.split('').map(Number);
+    const sum = digits.slice(0,12).reduce((acc, d, i)=> acc + d * (i%2 ? 3 : 1), 0);
+    const check = (10 - (sum % 10)) % 10;
+    return check === digits[12];
+  }
+  function normalizeCandidate(raw){
+    let t = (raw||'').replace(/\D/g,'');
+    if (t.length > 13 && t.startsWith('97') && /^\d{18}$/.test(t)) {
+      t = t.slice(0,13);
+    }
+    return t;
+  }
+  function looksLikeIsbn13(s){
+    return (s.startsWith('978') || s.startsWith('979')) && isValidIsbn13(s);
+  }
+
   async function listCameras(){
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d=>d.kind==='videoinput');
@@ -128,9 +148,16 @@
 
   async function onScan(res, err){
     if(res){
-      const raw = res.getText().replace(/[^0-9X]/gi,'');
-      if (debounceDuplicate(raw)) return;
-      resultEl.textContent = raw;
+      const raw = res.getText();
+      const cand = normalizeCandidate(raw);
+
+      // 二本バーコード対策：ISBN(978/979)かつチェックデジットOKだけ採用
+      if (!looksLikeIsbn13(cand)) {
+        return;
+      }
+      if (debounceDuplicate(cand)) return;
+
+      resultEl.textContent = cand; // 表示はISBNのみ
 
       // ログインユーザーからアクセストークン取得（n8nで検証する）
       const { data: sess } = await supa.auth.getSession();
@@ -143,7 +170,7 @@
       }
 
       const payload = {
-        isbn: raw,
+        isbn: cand,
         userId,
         isLabBook: !!labBookEl.checked,
         supabaseAccessToken: accessToken
@@ -180,11 +207,7 @@
   }
 
   startBtn.addEventListener('click', startCamera);
-
-  devicesSel.addEventListener('change', ()=>{
-    codeReader.reset();
-    startCamera();
-  });
+  devicesSel.addEventListener('change', ()=>{ codeReader.reset(); startCamera(); });
 
   // Torch (可能な端末のみ)
   torchEl.addEventListener('change', async ()=>{
@@ -211,23 +234,18 @@
       logoutBtn.style.display = "none";
     }
   }
-
   loginBtn.addEventListener('click', async ()=>{
     await supa.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: location.origin + location.pathname }
     });
   });
-
   logoutBtn.addEventListener('click', async ()=>{
     await supa.auth.signOut();
     await refreshUser();
   });
-
-  // 初期表示時にセッション確認
   refreshUser();
 
-  // iOS等でのHTTPSチェック
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
     statusEl.textContent = "注意: カメラ使用には https が必要です（localhost除く）";
   }
